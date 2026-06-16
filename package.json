@@ -1,5 +1,5 @@
 {
-  "name": "inspiration-note",
+  "name": "note-sprite",
   "version": "1.0.0",
   "description": "A sleek, modern desktop sticky note application built with Electron and SQLite",
   "main": "main.js",
@@ -22,7 +22,7 @@
   },
   "build": {
     "appId": "com.inspiration.note",
-    "productName": "灵感便签",
+    "productName": "便签精灵",
     "directories": {
       "output": "dist"
     },
@@ -43,12 +43,35 @@
         }
       ]
     },
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "src/assets/icon.png"
+    },
+    "dmg": {
+      "iconSize": 100,
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "灵感便签"
+      "shortcutName": "便签精灵"
     },
     "files": [
       "**/*",

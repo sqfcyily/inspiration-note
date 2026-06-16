@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
+  platform: process.platform,
   // Window controls
   minimize: () => ipcRenderer.send('window-minimize'),
   maximize: () => ipcRenderer.send('window-maximize'),
@@ -22,6 +23,19 @@ contextBridge.exposeInMainWorld('api', {
   getSettings: () => ipcRenderer.invoke('db-get-settings'),
   saveSetting: (key, value) => ipcRenderer.invoke('db-save-setting', key, value),
   
+  // Desktop Mode operations
+  setIgnoreMouseEvents: (ignore) => ipcRenderer.send('window-set-ignore-mouse-events', ignore),
+  toggleDesktopMode: (enable) => ipcRenderer.send('window-toggle-desktop-mode', enable),
+  onTrayToggleDesktopMode: (callback) => ipcRenderer.on('tray-toggle-desktop-mode', (e, enable) => callback(enable)),
+  onTrayTogglePetVisibility: (callback) => ipcRenderer.on('tray-toggle-pet-visibility', (e, visible) => callback(visible)),
+  togglePetVisibility: (visible) => ipcRenderer.send('window-toggle-pet-visibility', visible),
+  getDisplays: () => ipcRenderer.invoke('get-displays'),
+  setAlwaysOnTop: (alwaysOnTop) => ipcRenderer.send('window-set-always-on-top', alwaysOnTop),
+  openNewNoteFromPet: (coords) => ipcRenderer.send('window-open-editor-from-pet', coords),
+  onOpenEditorFromPet: (callback) => ipcRenderer.on('open-editor-from-pet', (e, coords) => callback(coords)),
+  onChangePet: (callback) => ipcRenderer.on('change-pet', (e, petKey) => callback(petKey)),
+  
   // Listeners for shortcuts or events
-  onNewNoteShortcut: (callback) => ipcRenderer.on('shortcut-new-note', () => callback())
+  onNewNoteShortcut: (callback) => ipcRenderer.on('shortcut-new-note', () => callback()),
+  log: (msg) => ipcRenderer.send('log-from-pet', msg)
 });

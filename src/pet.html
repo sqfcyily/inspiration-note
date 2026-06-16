@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>便签精灵 - 桌面精灵</title>
+  <link rel="stylesheet" href="styles/index.css">
+  <style>
+    html, body {
+      background: transparent !important;
+      overflow: hidden !important;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+  </style>
+</head>
+<body class="desktop-mode">
+
+  <script src="scripts/pet-manager.js"></script>
+  <script>
+    // Initialize the desktop pet in this independent window
+    document.addEventListener('DOMContentLoaded', async () => {
+      let activePet = 'harlequin';
+      let petVisible = true;
+
+      // 1. Get settings from database
+      try {
+        if (window.api && window.api.getSettings) {
+          const settings = await window.api.getSettings();
+          activePet = settings.active_pet || 'harlequin';
+          petVisible = settings.pet_visible !== 'false';
+        }
+      } catch (e) {
+        console.error('Failed to load active pet setting:', e);
+      }
+
+      // 2. Initialize pet manager
+      if (window.DesktopPetManager) {
+        window.petManager = new DesktopPetManager(activePet);
+        window.petManager.toggleVisibility(petVisible);
+      }
+
+      // 3. Register IPC tray toggle visibility
+      if (window.api && window.api.onTrayTogglePetVisibility) {
+        window.api.onTrayTogglePetVisibility((visible) => {
+          if (window.petManager) {
+            window.petManager.toggleVisibility(visible);
+          }
+        });
+      }
+
+      // 4. Register IPC change pet character
+      if (window.api && window.api.onChangePet) {
+        window.api.onChangePet((petKey) => {
+          if (window.petManager) {
+            window.petManager.changeCharacter(petKey);
+          }
+        });
+      }
+
+      // 5. Global mousemove listener for window ignore events (transparent click-through)
+      document.addEventListener('mousemove', (e) => {
+        if (!window.petManager || !window.petManager.visible) {
+          window.api.setIgnoreMouseEvents(true);
+          return;
+        }
+
+        // If currently dragging, DO NOT ignore mouse events!
+        if (window.petManager.isMouseDown) {
+          window.api.setIgnoreMouseEvents(false);
+          return;
+        }
+
+        const petEl = document.getElementById('desktop-pet-container');
+        if (petEl) {
+          const rect = petEl.getBoundingClientRect();
+          
+          let topBound = rect.top;
+          let leftBound = rect.left;
+          let rightBound = rect.right;
+          let bottomBound = rect.bottom;
+
+          // Expand active area upwards if menu or dialogue bubble is visible
+          const isMenuVisible = window.petManager.menuVisible;
+          const isBubbleVisible = window.petManager.speechBubble && window.petManager.speechBubble.style.display !== 'none';
+          
+          if (isMenuVisible || isBubbleVisible) {
+            topBound -= 185; 
+            leftBound -= 50;  
+            rightBound += 50; 
+          }
+
+          if (e.clientX >= leftBound && e.clientX <= rightBound &&
+              e.clientY >= topBound && e.clientY <= bottomBound) {
+            window.api.setIgnoreMouseEvents(false);
+          } else {
+            window.api.setIgnoreMouseEvents(true);
+          }
+        } else {
+          window.api.setIgnoreMouseEvents(true);
+        }
+      });
+    });
+  </script>
+</body>
+</html>

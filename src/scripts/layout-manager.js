@@ -1,10 +1,11 @@
 // Layout Manager
 class LayoutManager {
   constructor() {
-    this.layoutMode = 'free'; // 'free' or 'auto'
+    this.layoutMode = 'free'; // 'desktop', 'free', or 'auto'
     this.sortBy = 'updated_at'; // 'updated_at', 'created_at', 'priority'
     
     this.board = document.getElementById('notes-board');
+    this.desktopBtn = document.getElementById('layout-desktop-btn');
     this.freeBtn = document.getElementById('layout-free-btn');
     this.autoBtn = document.getElementById('layout-auto-btn');
     this.sortContainer = document.getElementById('sort-setting-container');
@@ -15,6 +16,9 @@ class LayoutManager {
 
   init() {
     // Register event listeners
+    if (this.desktopBtn) {
+      this.desktopBtn.addEventListener('click', () => this.setLayoutMode('desktop'));
+    }
     this.freeBtn.addEventListener('click', () => this.setLayoutMode('free'));
     this.autoBtn.addEventListener('click', () => this.setLayoutMode('auto'));
     this.sortSelect.addEventListener('change', (e) => this.handleSortChange(e.target.value));
@@ -23,18 +27,24 @@ class LayoutManager {
   setLayoutMode(mode) {
     this.layoutMode = mode;
     
-    if (mode === 'free') {
-      this.freeBtn.classList.add('active');
-      this.autoBtn.classList.remove('active');
+    // Toggle active class on layout buttons
+    if (this.desktopBtn) this.desktopBtn.classList.toggle('active', mode === 'desktop');
+    this.freeBtn.classList.toggle('active', mode === 'free');
+    this.autoBtn.classList.toggle('active', mode === 'auto');
+    
+    if (mode === 'desktop' || mode === 'free') {
       this.board.classList.add('notes-free-mode');
       this.board.classList.remove('notes-grid-mode');
       this.sortContainer.style.display = 'none';
     } else {
-      this.freeBtn.classList.remove('active');
-      this.autoBtn.classList.add('active');
       this.board.classList.remove('notes-free-mode');
       this.board.classList.add('notes-grid-mode');
       this.sortContainer.style.display = 'flex';
+    }
+
+    // Call global window function to toggle window-level desktop mode
+    if (window.setDesktopModeState) {
+      window.setDesktopModeState(mode === 'desktop');
     }
 
     // Save to settings
@@ -98,15 +108,19 @@ class LayoutManager {
     let y = 40;
     let foundSpace = false;
     
+    const isDesktop = this.layoutMode === 'desktop';
+    const xKey = isDesktop ? 'desktop_pos_x' : 'pos_x';
+    const yKey = isDesktop ? 'desktop_pos_y' : 'pos_y';
+
     // Loop until we find a position that does not overlap too much with any existing note
     while (!foundSpace) {
       let overlap = false;
       for (const note of existingNotes) {
-        if (note.pos_x === null || note.pos_y === null) continue;
+        if (note[xKey] === null || note[yKey] === null) continue;
         
         // Calculate collision box
-        const noteX = note.pos_x;
-        const noteY = note.pos_y;
+        const noteX = note[xKey];
+        const noteY = note[yKey];
         const noteW = note.width || width;
         const noteH = note.height || height;
         

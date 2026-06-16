@@ -1,6 +1,6 @@
 # 💡 灵感便签 (Inspiration Note)
 
-一个专为 Windows 平台打造的桌面便签/备忘录应用。基于 **Electron**、**Vanilla JS** 和 **SQLite** 构建，融入现代极致的**毛玻璃（Glassmorphism）**拟物设计，拥有流畅的微交互动效、自适应看板、标签/分类管理以及 Markdown 预览高亮等丰富功能。
+桌面便签/备忘录应用。基于 **Electron**、**Vanilla JS** 和 **SQLite** 构建，拥有流畅的微交互动效、自适应看板、标签/分类管理以及 Markdown 预览高亮等丰富功能。
 
 ---
 
@@ -25,7 +25,6 @@
 
 ### 4. 极致 Markdown 与安全体验
 *   **Markdown + Prism.js 高亮**：卡片正文原生支持渲染 Markdown 格式文本，编辑器支持“编辑”与“实时渲染预览”双选项卡切换。集成 Prism.js 为代码块提供精美的语法高亮。
-*   **外部浏览器唤起**：应用内部点击 `http://`、`https://` 或 `mailto:` 超链接时，主窗口会自动拦截，并在后台调用系统默认的网页浏览器（如 Chrome/Edge）载入，不会覆盖原有便签主界面。
 *   **无缝系统常驻**：关闭主窗口自动最小化至系统托盘，支持双击托盘恢复，右键托盘菜单支持快速呼出、新建便签及完全退出。
 *   **双模主题**：支持暗色（深蓝紫调）和亮色（经典灰白）一键切换，CSS 变量动态刷新。
 
@@ -98,16 +97,36 @@ npm start
 
 ## 📦 应用程序打包发布
 
-我们已经集成了 `electron-builder` 打包配置。在 Windows 平台上，打包会自动为您生成**安装版 (NSIS)** 以及 **绿色免安装单文件版 (Portable)**：
+我们已经集成了 `electron-builder` 打包配置，支持 Windows 和 macOS 双平台编译：
 
-### 1. 执行打包命令
+### 1. Windows 平台打包
+打包会自动为您生成**安装版 (NSIS)** 以及 **绿色免安装单文件版 (Portable)**：
+
+#### 执行打包命令
 ```bash
 npm run dist
 ```
 
-### 2. 注意事项 (Windows Symlinks 特权报错解决)
+#### 注意事项 (Windows Symlinks 特权报错解决)
 由于 `winCodeSign` 压缩包中带有 macOS/Linux 系统的符号链接，Windows 普通终端在解压时会因为无权限抛出 `Cannot create symbolic link: 客户端没有特权` 错误。
 *   **自动处理方案**：本工程在配置中已经做好了规避。在解压时通过 `7za.exe` 命令中附加 `-x!darwin` 剔成了不支持的平台目录，使得 Windows 编译免于特权依赖。
 *   **打包成果**：编译生成的 exe 文件将输出在根目录的 `dist/` 下：
     *   **安装包**：`dist/灵感便签 Setup 1.0.0.exe` (提供安装引导、快捷方式)
     *   **绿色版**：`dist/灵感便签 1.0.0.exe` (直接双击即可流畅运行，零配置)
+
+### 2. macOS 平台打包
+为了编译生成 macOS 的 `.dmg` 安装镜像与免安装 `.app` 包，必须在一台 Mac 电脑上运行以下步骤：
+
+#### 安装与编译
+```bash
+# 安装依赖 (会自编译 better-sqlite3 对应的 Mac 二进制文件)
+npm install
+
+# 运行 macOS 平台打包
+npx electron-builder --mac
+```
+
+#### 打包成果
+编译生成的文件将输出在根目录的 `dist/` 下：
+*   **DMG 磁盘镜像**：`dist/灵感便签-1.0.0.dmg` (双击弹出标准的拖动到 Applications 的安装框)
+*   **免安装 App 资源**：`dist/灵感便签.app` (可以直接运行或复制到应用程序目录)

@@ -27,6 +27,8 @@ function initDatabase(dbPath) {
       is_starred  INTEGER DEFAULT 0,
       pos_x       REAL DEFAULT NULL,
       pos_y       REAL DEFAULT NULL,
+      desktop_pos_x REAL DEFAULT NULL,
+      desktop_pos_y REAL DEFAULT NULL,
       width       REAL DEFAULT 240,
       height      REAL DEFAULT 200,
       sort_order  INTEGER DEFAULT 0,
@@ -76,6 +78,18 @@ function initDatabase(dbPath) {
     insertSetting.run('sort_by', 'updated_at'); // 'updated_at', 'created_at', 'priority'
   }
 
+  // Migrate existing databases: Add desktop_pos_x and desktop_pos_y if they don't exist
+  try {
+    db.prepare('ALTER TABLE notes ADD COLUMN desktop_pos_x REAL DEFAULT NULL').run();
+  } catch (e) {
+    // Column already exists, ignore
+  }
+  try {
+    db.prepare('ALTER TABLE notes ADD COLUMN desktop_pos_y REAL DEFAULT NULL').run();
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
   console.log('Database initialized at:', dbPath);
 }
 
@@ -107,14 +121,16 @@ function createNote(noteData = {}) {
   const is_starred = noteData.is_starred || 0;
   const pos_x = noteData.pos_x !== undefined ? noteData.pos_x : null;
   const pos_y = noteData.pos_y !== undefined ? noteData.pos_y : null;
+  const desktop_pos_x = noteData.desktop_pos_x !== undefined ? noteData.desktop_pos_x : null;
+  const desktop_pos_y = noteData.desktop_pos_y !== undefined ? noteData.desktop_pos_y : null;
   const width = noteData.width || 240;
   const height = noteData.height || 200;
   const sort_order = noteData.sort_order || 0;
 
   const info = db.prepare(`
-    INSERT INTO notes (title, content, category, color, priority, is_pinned, is_starred, pos_x, pos_y, width, height, sort_order)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(title, content, category, color, priority, is_pinned, is_starred, pos_x, pos_y, width, height, sort_order);
+    INSERT INTO notes (title, content, category, color, priority, is_pinned, is_starred, pos_x, pos_y, desktop_pos_x, desktop_pos_y, width, height, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(title, content, category, color, priority, is_pinned, is_starred, pos_x, pos_y, desktop_pos_x, desktop_pos_y, width, height, sort_order);
 
   const noteId = info.lastInsertRowid;
 

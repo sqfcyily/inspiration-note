@@ -3,8 +3,11 @@ const path = require('path');
 const dbHelper = require('./database');
 
 let mainWindow = null;
+let petWindow = null;
 let tray = null;
 let isQuitting = false;
+let trayContextMenu = null;
+let isDesktopMode = false;
 
 function initDatabase() {
   const dbPath = path.join(app.getPath('userData'), 'inspiration-note.db');
@@ -18,14 +21,15 @@ function createMainWindow() {
     minWidth: 800,
     minHeight: 600,
     frame: false, // frameless window
+    transparent: true, // transparent window support
+    titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
     icon: path.join(__dirname, 'src', 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true
     },
-    show: false, // show after ready-to-show to prevent white flash
-    backgroundColor: '#0f0f14' // matching dark theme background
+    show: false // show after ready-to-show to prevent white flash
   });
 
   mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
@@ -59,35 +63,64 @@ function createMainWindow() {
     }
   });
 
+
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
 }
 
-function createTray() {
-  // Use a default icon or generate a simple mock one, we will use a fallback or standard icon
-  // For Windows, a 16x16 or 32x32 ico or png is fine
-  // Since we don't have an icon yet, we can use a dummy file or create a simple visual icon.
-  // We will create a small icon file using canvas, or copy a blank file. Let's make a simple icon png.
-  const iconPath = path.join(__dirname, 'src', 'assets', 'icon.png');
-  
-  // Create folders if they don't exist
-  const assetsDir = path.dirname(iconPath);
-  if (!require('fs').existsSync(assetsDir)){
-    require('fs').mkdirSync(assetsDir, { recursive: true });
+function createPetWindow(x, y, width, height) {
+  if (petWindow) {
+    petWindow.setPosition(x, y);
+    petWindow.setSize(width, height);
+    petWindow.show();
+    return;
   }
 
-  // Write a simple placeholder file for icon if not exists, so it doesn't crash tray creation.
-  // Actually, we can use nativeImage.createFromPath or create an empty PNG to prevent errors.
-  // If the file doesn't exist, Electron might show a warning. We'll write a simple 1x1 blank transparent PNG or similar.
-  // Better: We will write a tiny valid 1x1 pixel PNG.
+  petWindow = new BrowserWindow({
+    width: 800,
+    height: 600,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    hasShadow: false,
+    skipTaskbar: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  });
+
+  petWindow.setPosition(x, y);
+  petWindow.setSize(width, height);
+
+  petWindow.setAlwaysOnTop(true, 'screen-saver');
+  petWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+
+  petWindow.setIgnoreMouseEvents(true, { forward: true });
+  petWindow.loadFile(path.join(__dirname, 'src', 'pet.html'));
+
+  petWindow.on('closed', () => {
+    petWindow = null;
+  });
+}
+
+function createTray() {
+  const iconPath = path.join(__dirname, 'src', 'assets', 'icon.png');
   const blankPngBuffer = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
   if (!require('fs').existsSync(iconPath)) {
     require('fs').writeFileSync(iconPath, blankPngBuffer);
   }
 
+  const settings = dbHelper.getSettings();
+  const activePet = settings.active_pet || 'harlequin';
+  const isDesktop = settings.layout_mode === 'desktop';
+  const petVisibleSetting = settings.pet_visible !== 'false';
+
   tray = new Tray(iconPath);
-  const contextMenu = Menu.buildFromTemplate([
+  trayContextMenu = Menu.buildFromTemplate([
     { 
       label: '显示主窗口', 
       click: () => {
@@ -107,6 +140,63 @@ function createTray() {
         }
       }
     },
+    {
+      label: '桌面壁纸模式',
+      type: 'checkbox',
+      id: 'desktop-mode-item',
+      checked: isDesktop,
+      click: (menuItem) => {
+        if (mainWindow) {
+          mainWindow.webContents.send('tray-toggle-desktop-mode', menuItem.checked);
+        }
+      }
+    },
+    {
+      label: '选择桌宠',
+      type: 'submenu',
+      submenu: [
+        {
+          label: '不显示',
+          type: 'radio',
+          id: 'pet-none-item',
+          checked: !petVisibleSetting,
+          click: () => {
+            dbHelper.saveSetting('pet_visible', 'false');
+            if (petWindow) {
+              petWindow.webContents.send('tray-toggle-pet-visibility', false);
+            }
+          }
+        },
+        {
+          label: '哈利昆 (Harlequin)',
+          type: 'radio',
+          id: 'pet-harlequin-item',
+          checked: petVisibleSetting && activePet === 'harlequin',
+          click: () => {
+            dbHelper.saveSetting('pet_visible', 'true');
+            dbHelper.saveSetting('active_pet', 'harlequin');
+            if (petWindow) {
+              petWindow.webContents.send('tray-toggle-pet-visibility', true);
+              petWindow.webContents.send('change-pet', 'harlequin');
+            }
+          }
+        },
+        {
+          label: '路飞 (Luffy)',
+          type: 'radio',
+          id: 'pet-luffy-item',
+          checked: petVisibleSetting && activePet === 'monkey-d-luffy',
+          click: () => {
+            dbHelper.saveSetting('pet_visible', 'true');
+            dbHelper.saveSetting('active_pet', 'monkey-d-luffy');
+            if (petWindow) {
+              petWindow.webContents.send('tray-toggle-pet-visibility', true);
+              petWindow.webContents.send('change-pet', 'monkey-d-luffy');
+            }
+          }
+        }
+      ]
+    },
     { type: 'separator' },
     { 
       label: '退出', 
@@ -117,8 +207,8 @@ function createTray() {
     }
   ]);
 
-  tray.setToolTip('灵感便签');
-  tray.setContextMenu(contextMenu);
+  tray.setToolTip('便签精灵');
+  tray.setContextMenu(trayContextMenu);
 
   tray.on('double-click', () => {
     if (mainWindow) {
@@ -134,6 +224,10 @@ function createTray() {
 
 // IPC Handlers
 function registerIpcHandlers() {
+  ipcMain.on('log-from-pet', (event, msg) => {
+    console.log('[PET RENDERER LOG]:', msg);
+  });
+
   // Window controls
   ipcMain.on('window-minimize', () => {
     if (mainWindow) mainWindow.minimize();
@@ -152,6 +246,113 @@ function registerIpcHandlers() {
   ipcMain.on('window-close', () => {
     if (mainWindow) {
       mainWindow.close(); // triggers 'close' event which hides window
+    }
+  });
+
+  ipcMain.on('window-set-ignore-mouse-events', (event, ignore) => {
+    const webContents = event.sender;
+    const win = BrowserWindow.fromWebContents(webContents);
+    if (win) {
+      win.setIgnoreMouseEvents(ignore, { forward: true });
+    }
+  });
+
+  ipcMain.on('window-set-always-on-top', (event, alwaysOnTop) => {
+    const webContents = event.sender;
+    const win = BrowserWindow.fromWebContents(webContents);
+    if (win) {
+      if (alwaysOnTop) {
+        win.setAlwaysOnTop(true, 'screen-saver');
+        win.show();
+        win.focus();
+      } else {
+        win.setAlwaysOnTop(false);
+      }
+    }
+  });
+
+  ipcMain.on('window-open-editor-from-pet', (event, coords) => {
+    if (mainWindow) {
+      mainWindow.webContents.send('open-editor-from-pet', coords);
+    }
+  });
+
+  ipcMain.on('window-toggle-pet-visibility', (event, visible) => {
+    if (trayContextMenu) {
+      if (!visible) {
+        const item = trayContextMenu.getMenuItemById('pet-none-item');
+        if (item) item.checked = true;
+      } else {
+        const settings = dbHelper.getSettings();
+        const activePet = settings.active_pet || 'harlequin';
+        if (activePet === 'harlequin') {
+          const item = trayContextMenu.getMenuItemById('pet-harlequin-item');
+          if (item) item.checked = true;
+        } else if (activePet === 'monkey-d-luffy') {
+          const item = trayContextMenu.getMenuItemById('pet-luffy-item');
+          if (item) item.checked = true;
+        }
+      }
+    }
+  });
+
+  ipcMain.on('window-toggle-desktop-mode', (event, enable) => {
+    if (mainWindow) {
+      isDesktopMode = enable;
+
+      if (enable) {
+        const { screen } = require('electron');
+        const displays = screen.getAllDisplays();
+        
+        let minX = displays[0].bounds.x;
+        let minY = displays[0].bounds.y;
+        let maxX = displays[0].bounds.x + displays[0].bounds.width;
+        let maxY = displays[0].bounds.y + displays[0].bounds.height;
+        
+        displays.forEach((display) => {
+          const { x, y, width, height } = display.bounds;
+          if (x < minX) minX = x;
+          if (y < minY) minY = y;
+          if (x + width > maxX) maxX = x + width;
+          if (y + height > maxY) maxY = y + height;
+        });
+        
+        const totalWidth = maxX - minX;
+        const totalHeight = maxY - minY;
+        
+        mainWindow.setPosition(minX, minY);
+        mainWindow.setSize(totalWidth, totalHeight);
+        mainWindow.setSkipTaskbar(true);
+        if (process.platform === 'darwin') {
+          mainWindow.setWindowLevel('desktop');
+        } else {
+          mainWindow.setAlwaysOnTop(false);
+        }
+
+        // Create independent always-on-top pet window
+        createPetWindow(minX, minY, totalWidth, totalHeight);
+      } else {
+        mainWindow.setSkipTaskbar(false);
+        if (process.platform === 'darwin') {
+          mainWindow.setWindowLevel('normal');
+        } else {
+          mainWindow.setAlwaysOnTop(false);
+        }
+        mainWindow.setSize(1100, 800);
+        mainWindow.center();
+
+        // Close and clean up pet window
+        if (petWindow) {
+          petWindow.close();
+          petWindow = null;
+        }
+      }
+      
+      // Update tray checkbox checked status
+      if (trayContextMenu) {
+        const item = trayContextMenu.getMenuItemById('desktop-mode-item');
+        if (item) item.checked = enable;
+      }
     }
   });
 
@@ -198,6 +399,15 @@ function registerIpcHandlers() {
 
   ipcMain.handle('db-save-setting', async (event, key, value) => {
     return dbHelper.saveSetting(key, value);
+  });
+
+  ipcMain.handle('get-displays', async () => {
+    const { screen } = require('electron');
+    return screen.getAllDisplays().map(d => ({
+      id: d.id,
+      bounds: { x: d.bounds.x, y: d.bounds.y, width: d.bounds.width, height: d.bounds.height },
+      workArea: { x: d.workArea.x, y: d.workArea.y, width: d.workArea.width, height: d.workArea.height }
+    }));
   });
 }
 

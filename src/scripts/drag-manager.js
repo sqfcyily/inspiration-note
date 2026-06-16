@@ -30,8 +30,8 @@ class DragManager {
       return;
     }
 
-    // Check if free layout mode is active
-    if (!window.layoutManager || window.layoutManager.layoutMode !== 'free') {
+    // Check if dragging layout mode is active (either free or desktop)
+    if (!window.layoutManager || (window.layoutManager.layoutMode !== 'free' && window.layoutManager.layoutMode !== 'desktop')) {
       return;
     }
 
@@ -149,18 +149,26 @@ class DragManager {
       this.activeCard.classList.remove('dragging');
       this.isDragging = false;
       
-      const pos_x = parseInt(this.activeCard.style.left) || 0;
-      const pos_y = parseInt(this.activeCard.style.top) || 0;
+      const x = parseInt(this.activeCard.style.left) || 0;
+      const y = parseInt(this.activeCard.style.top) || 0;
+      
+      const isDesktop = window.layoutManager && window.layoutManager.layoutMode === 'desktop';
+      const updateData = isDesktop ? { desktop_pos_x: x, desktop_pos_y: y } : { pos_x: x, pos_y: y };
       
       // Update database
       try {
-        await window.api.updateNote(cardId, { pos_x, pos_y });
+        await window.api.updateNote(cardId, updateData);
         // Sync note cache
         if (window.noteManager) {
           const noteIndex = window.noteManager.notes.findIndex(n => n.id === cardId);
           if (noteIndex !== -1) {
-            window.noteManager.notes[noteIndex].pos_x = pos_x;
-            window.noteManager.notes[noteIndex].pos_y = pos_y;
+            if (isDesktop) {
+              window.noteManager.notes[noteIndex].desktop_pos_x = x;
+              window.noteManager.notes[noteIndex].desktop_pos_y = y;
+            } else {
+              window.noteManager.notes[noteIndex].pos_x = x;
+              window.noteManager.notes[noteIndex].pos_y = y;
+            }
           }
         }
       } catch (err) {

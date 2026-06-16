@@ -40,13 +40,26 @@ class NoteManager {
 
     // New Note double-click coordinates (only used in free layout mode)
     this.dblClickCoords = null;
+    this.modalOpenCoords = null;
+
+    // Modal dragging variables
+    this.modalHeader = this.modal.querySelector('.modal-header');
+    this.modalCard = this.modal.querySelector('.modal-card');
+    this.modalIsDragging = false;
+    this.modalStartX = 0;
+    this.modalStartY = 0;
+    this.modalStartLeft = 0;
+    this.modalStartTop = 0;
 
     this.init();
   }
 
   init() {
     // Register event listeners
-    document.getElementById('new-note-btn').addEventListener('click', () => this.openEditor(null));
+    document.getElementById('new-note-btn').addEventListener('click', (e) => {
+      this.modalOpenCoords = { x: e.clientX, y: e.clientY };
+      this.openEditor(null);
+    });
     
     // Board double click to create note
     this.board.addEventListener('dblclick', (e) => {
@@ -60,8 +73,30 @@ class NoteManager {
             y: e.clientY - rect.top + this.board.scrollTop
           };
         }
+        this.modalOpenCoords = { x: e.clientX, y: e.clientY };
         this.openEditor(null);
       }
+    });
+
+    // Modal header dragging for Desktop Mode
+    this.modalHeader.addEventListener('mousedown', (e) => {
+      if (!document.body.classList.contains('desktop-mode')) return;
+      
+      // Ignore drags on input fields and buttons
+      if (e.target.tagName.toLowerCase() === 'input' || e.target.closest('.modal-action-btn') || e.target.closest('button')) {
+        return;
+      }
+      
+      e.preventDefault();
+      this.modalIsDragging = true;
+      this.modalStartX = e.clientX;
+      this.modalStartY = e.clientY;
+      
+      const rect = this.modalCard.getBoundingClientRect();
+      this.modalStartLeft = rect.left;
+      this.modalStartTop = rect.top;
+      
+      this.bindModalDragEvents();
     });
 
     // Close button
@@ -107,6 +142,44 @@ class NoteManager {
         e.currentTarget.classList.add('active');
       });
     });
+  }
+
+  bindModalDragEvents() {
+    this.onModalMouseMove = (e) => this.handleModalMouseMove(e);
+    this.onModalMouseUp = () => this.handleModalMouseUp();
+    document.addEventListener('mousemove', this.onModalMouseMove);
+    document.addEventListener('mouseup', this.onModalMouseUp);
+  }
+
+  unbindModalDragEvents() {
+    document.removeEventListener('mousemove', this.onModalMouseMove);
+    document.removeEventListener('mouseup', this.onModalMouseUp);
+  }
+
+  handleModalMouseMove(e) {
+    if (!this.modalIsDragging) return;
+    
+    const dx = e.clientX - this.modalStartX;
+    const dy = e.clientY - this.modalStartY;
+    
+    let newLeft = this.modalStartLeft + dx;
+    let newTop = this.modalStartTop + dy;
+    
+    // Bounds checks
+    const w = this.modalCard.offsetWidth;
+    const h = this.modalCard.offsetHeight;
+    if (newLeft < 0) newLeft = 0;
+    if (newTop < 0) newTop = 0;
+    if (newLeft + w > window.innerWidth) newLeft = window.innerWidth - w;
+    if (newTop + h > window.innerHeight) newTop = window.innerHeight - h;
+    
+    this.modalCard.style.left = `${newLeft}px`;
+    this.modalCard.style.top = `${newTop}px`;
+  }
+
+  handleModalMouseUp() {
+    this.modalIsDragging = false;
+    this.unbindModalDragEvents();
   }
 
   // Load and cache all notes from database
@@ -162,10 +235,20 @@ class NoteManager {
   }
 
   // Open the Editor Dialog
-  async openEditor(noteId = null) {
+  async openEditor(noteId = null, options = {}) {
+    // In desktop mode, disable ignore mouse events immediately when opening editor and set always on top
+    if (document.body.classList.contains('desktop-mode') && window.api) {
+      if (window.api.setIgnoreMouseEvents) {
+        window.api.setIgnoreMouseEvents(false);
+      }
+      if (window.api.setAlwaysOnTop) {
+        window.api.setAlwaysOnTop(true);
+      }
+    }
+
     // Prevent opening editor if confirm delete dialog is currently active
     const confirmModal = document.getElementById('confirm-modal');
-    if (confirmModal && confirmModal.style.display === 'flex') {
+    if (confirmModal && (confirmModal.style.display === 'flex' || confirmModal.style.display === 'block')) {
       return;
     }
 
@@ -229,13 +312,111 @@ class NoteManager {
       this.modalDeleteBtn.style.display = 'none';
     }
 
-    this.modal.style.display = 'flex';
+    if (document.body.classList.contains('desktop-mode')) {
+      let left = 20;
+      let top = 20;
+      const w = 580;
+      const h = 500; // estimated max height of modal card
+
+      if (options.fromPet) {
+        // Find which screen/display the pet is on, and center the modal on that screen's work area
+        const coords = options.petCoords || { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+        if (window.api && window.api.getDisplays) {
+          try {
+            const petCenterX = coords.x + window.screenX;
+            const petCenterY = coords.y + window.screenY;
+
+            const displays = await window.api.getDisplays();
+            // Find the display containing the pet's center
+            let targetDisplay = displays.find(d => {
+              const bounds = d.bounds;
+              return petCenterX >= bounds.x && petCenterX < bounds.x + bounds.width &&
+                     petCenterY >= bounds.y && petCenterY < bounds.y + bounds.height;
+            });
+
+            // Fallback to first display if not found
+            if (!targetDisplay && displays.length > 0) {
+              targetDisplay = displays[0];
+            }
+
+            if (targetDisplay) {
+              const workArea = targetDisplay.workArea;
+              // Center of work area in screen coordinates
+              const screenCenterX = workArea.x + workArea.width / 2;
+              const screenCenterY = workArea.y + workArea.height / 2;
+
+              // Convert screen center to page coordinates
+              const pageCenterX = screenCenterX - window.screenX;
+              const pageCenterY = screenCenterY - window.screenY;
+
+              left = pageCenterX - w / 2;
+              top = pageCenterY - h / 2;
+
+              // Constrain within the target display's work area (in page coordinates)
+              const workAreaPageX = workArea.x - window.screenX;
+              const workAreaPageY = workArea.y - window.screenY;
+
+              if (left < workAreaPageX + 20) left = workAreaPageX + 20;
+              if (left + w > workAreaPageX + workArea.width - 20) left = workAreaPageX + workArea.width - w - 20;
+              if (top < workAreaPageY + 20) top = workAreaPageY + 20;
+              if (top + h > workAreaPageY + workArea.height - 20) top = workAreaPageY + workArea.height - h - 20;
+            } else {
+              // Standard center of window fallback if no displays API
+              left = window.innerWidth / 2 - w / 2;
+              top = window.innerHeight / 2 - h / 2;
+            }
+          } catch (err) {
+            console.error('Failed to get displays for centering pet modal:', err);
+            left = window.innerWidth / 2 - w / 2;
+            top = window.innerHeight / 2 - h / 2;
+          }
+        } else {
+          left = window.innerWidth / 2 - w / 2;
+          top = window.innerHeight / 2 - h / 2;
+        }
+      } else {
+        // Double-click on board or normal startup creation position
+        const coords = this.modalOpenCoords || { x: window.lastMouseX || (window.innerWidth / 2), y: window.lastMouseY || (window.innerHeight / 2) };
+        this.modalOpenCoords = null; // reset
+        
+        left = coords.x - w / 2;
+        top = coords.y - 250; // center vertically roughly
+        
+        if (left < 20) left = 20;
+        if (left + w > window.innerWidth - 20) left = window.innerWidth - w - 20;
+        if (top < 20) top = 20;
+        if (top + h > window.innerHeight - 20) top = window.innerHeight - h - 20;
+      }
+      
+      this.modalCard.style.position = 'absolute';
+      this.modalCard.style.left = `${left}px`;
+      this.modalCard.style.top = `${top}px`;
+      this.modalCard.style.margin = '0';
+      this.modal.style.display = 'block';
+    } else {
+      // Reset styles for normal center positioning
+      this.modalCard.style.position = '';
+      this.modalCard.style.left = '';
+      this.modalCard.style.top = '';
+      this.modalCard.style.margin = '';
+      this.modal.style.display = 'flex';
+    }
     this.modalContent.focus();
   }
 
   closeEditor() {
     this.modal.style.display = 'none';
     this.dblClickCoords = null;
+
+    // In desktop mode, re-enable ignore mouse events and clear always-on-top when closing editor
+    if (document.body.classList.contains('desktop-mode') && window.api) {
+      if (window.api.setIgnoreMouseEvents) {
+        window.api.setIgnoreMouseEvents(true);
+      }
+      if (window.api.setAlwaysOnTop) {
+        window.api.setAlwaysOnTop(false);
+      }
+    }
   }
 
   switchTab(tab) {
@@ -308,15 +489,26 @@ class NoteManager {
         await window.api.updateNote(this.currentEditingId, noteData);
       } else {
         // Create Note
-        // If double clicked somewhere in free mode, use that position
+        const isDesktop = window.layoutManager && window.layoutManager.layoutMode === 'desktop';
+        // If double clicked somewhere, use that position (only possible in free mode now)
         if (this.dblClickCoords) {
-          noteData.pos_x = this.dblClickCoords.x;
-          noteData.pos_y = this.dblClickCoords.y;
-        } else if (window.layoutManager && window.layoutManager.layoutMode === 'free') {
+          if (isDesktop) {
+            noteData.desktop_pos_x = this.dblClickCoords.x;
+            noteData.desktop_pos_y = this.dblClickCoords.y;
+          } else {
+            noteData.pos_x = this.dblClickCoords.x;
+            noteData.pos_y = this.dblClickCoords.y;
+          }
+        } else if (window.layoutManager && (window.layoutManager.layoutMode === 'free' || window.layoutManager.layoutMode === 'desktop')) {
           // Standard position placement
           const pos = window.layoutManager.getNextFreePosition(this.notes);
-          noteData.pos_x = pos.x;
-          noteData.pos_y = pos.y;
+          if (isDesktop) {
+            noteData.desktop_pos_x = pos.x;
+            noteData.desktop_pos_y = pos.y;
+          } else {
+            noteData.pos_x = pos.x;
+            noteData.pos_y = pos.y;
+          }
         }
         
         await window.api.createNote(noteData);
@@ -380,7 +572,8 @@ class NoteManager {
     }
 
     // Toggle Empty State visibility
-    if (filteredNotes.length === 0) {
+    const isDesktopMode = document.body.classList.contains('desktop-mode') || (window.layoutManager && window.layoutManager.layoutMode === 'desktop');
+    if (filteredNotes.length === 0 && !isDesktopMode) {
       this.emptyState.style.display = 'block';
       this.board.classList.add('empty-board');
     } else {
@@ -463,8 +656,13 @@ class NoteManager {
 
     // Set positions for free drag layout
     if (!isAutoMode) {
-      const x = note.pos_x !== null ? note.pos_x : 40;
-      const y = note.pos_y !== null ? note.pos_y : 40;
+      const isDesktop = window.layoutManager && window.layoutManager.layoutMode === 'desktop';
+      const x = isDesktop 
+        ? (note.desktop_pos_x !== null ? note.desktop_pos_x : 40)
+        : (note.pos_x !== null ? note.pos_x : 40);
+      const y = isDesktop 
+        ? (note.desktop_pos_y !== null ? note.desktop_pos_y : 40)
+        : (note.pos_y !== null ? note.pos_y : 40);
       card.style.left = `${x}px`;
       card.style.top = `${y}px`;
       card.style.width = `${note.width || 240}px`;
@@ -518,23 +716,12 @@ class NoteManager {
       <div class="note-resize-handle"></div>
     `;
 
-    // Bind event listeners on card children
-    card.querySelector('.note-body').addEventListener('dblclick', (e) => {
-      // Only handle left clicks to prevent conflicts with context menus
-      if (e.button !== 0) return;
-      
-      // Stop double click from bubbling up to the board dblclick event
-      e.stopPropagation();
-      
-      // Check if clicking links or checkboxes, don't open editor if so
-      if (e.target.tagName !== 'A' && e.target.type !== 'checkbox') {
-        this.openEditor(note.id);
-      }
-    });
+
 
     // Directly open editor from edit button
     card.querySelector('.edit-card-btn').addEventListener('click', (e) => {
       e.stopPropagation();
+      this.modalOpenCoords = { x: e.clientX, y: e.clientY };
       this.openEditor(note.id);
     });
 

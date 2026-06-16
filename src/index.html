@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>灵感便签</title>
+  <title>便签精灵</title>
   <!-- Stylesheets -->
   <link rel="stylesheet" href="styles/index.css">
   <link rel="stylesheet" href="styles/sidebar.css">
@@ -24,7 +24,7 @@
     <div class="titlebar-drag-area"></div>
     <div class="titlebar-brand">
       <img class="brand-icon" src="assets/icon.png" width="16" height="16" alt="Icon">
-      <span class="brand-name">灵感便签</span>
+      <span class="brand-name">便签精灵</span>
     </div>
     
     <div class="titlebar-search">
@@ -139,6 +139,10 @@
       
       <!-- Logo/Version -->
       <div class="sidebar-footer">
+        <button id="toggle-desktop-widget-btn" class="sidebar-desktop-btn" title="开启桌面壁纸模式">
+          <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-5 14H4v-4h11v4zm0-5H4V9h11v4zm5 5h-4V9h4v9z"/></svg>
+          <span>桌面壁纸模式</span>
+        </button>
         <span class="version-text">v1.0.0</span>
       </div>
     </aside>
@@ -170,8 +174,9 @@
       <div class="statusbar-setting-group">
         <label>布局模式:</label>
         <div class="btn-group">
-          <button id="layout-free-btn" class="btn btn-toggle active" title="自由拖拽排列便签">自由托拽</button>
-          <button id="layout-auto-btn" class="btn btn-toggle" title="网格自动排列便签">网格自动</button>
+          <button id="layout-desktop-btn" class="btn btn-toggle" title="桌面挂件模式">桌面</button>
+          <button id="layout-free-btn" class="btn btn-toggle active" title="自由拖拽排列便签">拖拽</button>
+          <button id="layout-auto-btn" class="btn btn-toggle" title="网格自动排列便签">网格</button>
         </div>
       </div>
       
