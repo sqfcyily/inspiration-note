@@ -293,7 +293,14 @@ class NoteManager {
       this.modalContent.value = '';
       this.modalCategory.selectedIndex = 0;
       this.modalStarBtn.classList.remove('active');
-      this.modalPinBtn.classList.remove('active');
+      
+      // Default newly created notes in desktop mode to show pinned in UI so they are visible
+      const isDesktop = document.body.classList.contains('desktop-mode') || (window.layoutManager && window.layoutManager.layoutMode === 'desktop');
+      if (isDesktop) {
+        this.modalPinBtn.classList.add('active');
+      } else {
+        this.modalPinBtn.classList.remove('active');
+      }
       
       // Default to medium priority
       document.querySelectorAll('.priority-group .btn-toggle').forEach(b => {
@@ -407,16 +414,10 @@ class NoteManager {
   closeEditor() {
     this.modal.style.display = 'none';
     this.dblClickCoords = null;
-
-    // In desktop mode, re-enable ignore mouse events and clear always-on-top when closing editor
-    if (document.body.classList.contains('desktop-mode') && window.api) {
-      if (window.api.setIgnoreMouseEvents) {
-        window.api.setIgnoreMouseEvents(true);
-      }
-      if (window.api.setAlwaysOnTop) {
-        window.api.setAlwaysOnTop(false);
-      }
-    }
+    
+    // Note: In desktop mode, we do NOT immediately push the window to the bottom or ignore mouse events.
+    // This allows the user to drag new or edited cards immediately on save.
+    // The window will return to wallpaper level and click-through once it loses focus (blur event).
   }
 
   switchTab(tab) {
@@ -573,6 +574,9 @@ class NoteManager {
 
     // Toggle Empty State visibility
     const isDesktopMode = document.body.classList.contains('desktop-mode') || (window.layoutManager && window.layoutManager.layoutMode === 'desktop');
+    if (isDesktopMode) {
+      filteredNotes = filteredNotes.filter(note => note.is_pinned === 1);
+    }
     if (filteredNotes.length === 0 && !isDesktopMode) {
       this.emptyState.style.display = 'block';
       this.board.classList.add('empty-board');

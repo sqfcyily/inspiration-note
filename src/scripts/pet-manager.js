@@ -5,7 +5,7 @@ const PET_TEMPLATES = {
     name: "Harlequin (哈利昆)",
     dir: "harlequin",
     greetings: [
-      "哼，又在写什么无聊的便签呢？",
+      "哼，又在写什么无聊的东西呢？",
       "需要我用毒液给你的灵感上点色吗？",
       "咔哒... 别看我，我只是在监视你。",
       "今天也是充满毒性的一天呢，主人~",
@@ -28,6 +28,26 @@ const PET_TEMPLATES = {
       "肚子好饿啊... 哪里有好吃的东西？",
       "草帽是我的宝物，绝对不能弄脏！"
     ]
+  },
+  'hikari': {
+    name: "Hikari (小光)",
+    dir: "hikari",
+    greetings: [
+      "你好！我是 Hikari，很高兴认识你！✨",
+      "今天有什么灵感需要记录下来吗？",
+      "让我们一起加油吧！",
+      "呼... 桌面真宽敞啊，感觉很舒服呢！"
+    ]
+  },
+  'd9qt2pik': {
+    name: "Tatsumaki (战栗的龙卷)",
+    dir: "d9qt2pik",
+    greetings: [
+      "别挡我的路，愚蠢的家伙！💢",
+      "这种无聊的事情只有你这种弱者才会做吧？",
+      "哼，要不是太闲了，我才懒得在你的桌面上呆着呢！",
+      "我的超能力可是很强的，再戳我一下试试看？！"
+    ]
   }
 };
 
@@ -46,6 +66,12 @@ class DesktopPetManager {
     this.currentFrameIndex = 0;
     this.currentFrameTicks = 0;
     this.hasLoadedConfig = false;
+    
+    // Shimeji engine transition states
+    this.animationTicks = 0;
+    this.maxDuration = null;
+    this.currentTimers = [];
+    this.speedScale = 0.7; // Global speed damper for animations and normal walking movement
     
     // Physics variables
     this.x = 0;
@@ -148,8 +174,38 @@ class DesktopPetManager {
       <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
       <span>对话</span>
     `;
+
+    const exitBtn = document.createElement('button');
+    exitBtn.className = 'pet-menu-item';
+    exitBtn.id = 'pet-action-exit';
+    exitBtn.title = '隐藏精灵';
+    exitBtn.innerHTML = `
+      <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      <span>隐藏</span>
+    `;
     
+    // Create background orbiting magic/tech ring
+    const ring = document.createElement('div');
+    ring.className = 'pet-orbit-ring';
+    ring.innerHTML = `
+      <svg viewBox="0 0 100 100" width="100%" height="100%">
+        <!-- Outer dashed ring -->
+        <circle cx="50" cy="50" r="46" stroke="currentColor" stroke-width="1.2" fill="none" stroke-dasharray="8 4 2 4" />
+        <!-- Middle solid thin ring -->
+        <circle cx="50" cy="50" r="41" stroke="currentColor" stroke-width="0.6" fill="none" opacity="0.5" />
+        <!-- Inner runic dotted ring -->
+        <circle cx="50" cy="50" r="35" stroke="currentColor" stroke-width="1.5" fill="none" stroke-dasharray="1 5" />
+        <!-- Orbit path indicators -->
+        <circle cx="50" cy="9" r="1.5" fill="currentColor" />
+        <circle cx="50" cy="91" r="1.5" fill="currentColor" />
+        <circle cx="9" cy="50" r="1.5" fill="currentColor" />
+        <circle cx="91" cy="50" r="1.5" fill="currentColor" />
+      </svg>
+    `;
+    
+    this.actionMenu.appendChild(ring);
     this.actionMenu.appendChild(newBtn);
+    this.actionMenu.appendChild(exitBtn);
     this.actionMenu.appendChild(chatBtn);
     this.container.appendChild(this.actionMenu);
     
@@ -168,12 +224,12 @@ class DesktopPetManager {
     
     const centerX = this.width / 2; // horizontal center
     const centerY = this.height / 2; // vertical center
-    const R = 72; // radius of fan
+    const R = 80; // radius of orbit ring (floating exactly on the ring)
     const btnRadius = 17; // half of 34px button width
     
     // Fan angles above head (in degrees, from left to right)
-    const startAngle = -135; 
-    const endAngle = -45;
+    const startAngle = -150; 
+    const endAngle = -30;
     
     buttons.forEach((btn, i) => {
       let angleDeg = -90; // Default straight up if N = 1
@@ -306,6 +362,24 @@ class DesktopPetManager {
     };
   }
 
+  // Get all available special action animations dynamically from the loaded config
+  getSpecialActions() {
+    if (!this.animations || this.animations.length === 0) return [];
+    
+    // Standard basic and wall/climbing keys to exclude
+    const excludePatterns = [
+      /^stand/, /^walk/, /^run/, /^idle/, /^fall/, /^sleep/, /^sprawl/, /^sit/, /^bounce/, /^drag/, /^land/,
+      /climb/, /hold/, /hang/, /wall/, /ceiling/
+    ];
+    
+    return this.animations
+      .map(a => a.key)
+      .filter(key => {
+        // Exclude standard and climbing actions
+        return !excludePatterns.some(pat => pat.test(key));
+      });
+  }
+
   // Bind mouse drag, actions and click events
   bindEvents() {
     // 1. Dragging & Right-Click Radial Menu
@@ -348,22 +422,49 @@ class DesktopPetManager {
       this.triggerDialogue("这只是个占位哦，AI 对话聊天功能正在火热研制中！");
     });
     
+    document.getElementById('pet-action-exit').addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.hideMenu();
+      this.hide();
+    });
+    
 
 
-    // 3. Click to trigger simple reaction dialogue
+    // 3. Click to trigger simple reaction dialogue and random special action
     this.characterWrapper.addEventListener('click', (e) => {
       if (this.state === 'idle' || this.state === 'sitting' || this.state === 'sleeping') {
         e.stopPropagation();
-        this.triggerDialogue("唔？摸我干嘛，想被我咬一口吗？");
+        
+        // 70% chance to play a random special action on click
+        const specialKeys = this.getSpecialActions();
+        if (specialKeys.length > 0 && Math.random() < 0.7) {
+          this.changeState('action');
+        } else {
+          this.triggerDialogue("唔？摸我干嘛，想被我咬一口吗？");
+        }
       }
     });
   }
 
-  // playAnimation state selection helper
   playAnimation(key) {
     if (!this.hasLoadedConfig || this.animations.length === 0) return;
     
-    let anim = this.animations.find(a => a.key === key);
+    let targetKey = key;
+    
+    // Synchronize facing if target key contains direction suffixes
+    if (targetKey.endsWith('_left')) {
+      this.facing = 'left';
+    } else if (targetKey.endsWith('_right')) {
+      this.facing = 'right';
+    } else {
+      // Append matching directional suffix if not explicitly specified
+      const directionalKey = `${targetKey}_${this.facing}`;
+      if (this.animations.some(a => a.key === directionalKey)) {
+        targetKey = directionalKey;
+      }
+    }
+    
+    let anim = this.animations.find(a => a.key === targetKey);
     if (!anim) {
       // Fallback keys for animation naming mismatches between different Shimeji pets
       if (key === 'idle' || key === 'stand') {
@@ -378,22 +479,147 @@ class DesktopPetManager {
     }
     
     if (!anim) {
-      // Ultimate fallback: first available animation in config
       anim = this.animations[0];
     }
     
     if (!anim) return;
     
-    // If the animation is already active, don't restart frames
-    if (this.currentAnimation && this.currentAnimation.key === anim.key) {
-      return;
-    }
+    const isSameAnim = this.currentAnimation && this.currentAnimation.key === anim.key;
     
     this.currentAnimation = anim;
-    this.currentFrameIndex = 0;
-    this.currentFrameTicks = 0;
+    if (!isSameAnim) {
+      this.currentFrameIndex = 0;
+      this.currentFrameTicks = 0;
+    }
+    
+    // Initialize animation lifetime variables
+    this.initAnimationLife(anim);
     
     this.renderCurrentFrame();
+  }
+
+  // Initialize lifecycle timer variables for the current animation
+  initAnimationLife(anim) {
+    this.animationTicks = 0;
+    this.maxDuration = null;
+    this.currentTimers = [];
+    
+    if (!anim) return;
+    
+    if (anim.auto) {
+      if (anim.auto.maxDurationTicks) {
+        const min = anim.auto.maxDurationTicks.minTicks || 200;
+        const max = anim.auto.maxDurationTicks.maxTicks || 400;
+        this.maxDuration = min + Math.random() * (max - min);
+      } else if (anim.loop === 'LOOP') {
+        // Safe default duration for loop animations without explicit bounds
+        this.maxDuration = 240 + Math.random() * 240;
+      }
+      
+      if (anim.auto.onTimer && Array.isArray(anim.auto.onTimer)) {
+        this.currentTimers = anim.auto.onTimer.map(timer => {
+          const min = timer.minTicks !== undefined ? timer.minTicks : 100;
+          const max = timer.maxTicks !== undefined ? timer.maxTicks : 300;
+          return {
+            rule: timer,
+            triggerTicks: min + Math.random() * (max - min),
+            triggered: false
+          };
+        });
+      }
+    }
+  }
+
+  // Weighted random choice transition helper with type preference boost
+  chooseTransition(choices, preferredType = null) {
+    if (!choices || choices.length === 0) return null;
+    
+    const validChoices = choices.filter(c => c && c.to);
+    if (validChoices.length === 0) return null;
+    
+    const choicesWithWeights = validChoices.map(c => {
+      let weight = c.weight !== undefined ? c.weight : 1;
+      
+      // Scale weight up by 6 if the target animation matches preferred type
+      if (preferredType) {
+        const anim = this.animations.find(a => a.key === c.to);
+        if (anim && anim.type === preferredType) {
+          weight *= 6;
+        }
+      }
+      return { choice: c, weight };
+    });
+    
+    const totalWeight = choicesWithWeights.reduce((sum, cw) => sum + cw.weight, 0);
+    if (totalWeight <= 0) {
+      return validChoices[Math.floor(Math.random() * validChoices.length)];
+    }
+    
+    let rand = Math.random() * totalWeight;
+    for (const cw of choicesWithWeights) {
+      if (rand < cw.weight) {
+        return cw.choice;
+      }
+      rand -= cw.weight;
+    }
+    return validChoices[validChoices.length - 1];
+  }
+
+  // Transition to a choice target
+  transitionTo(choice) {
+    if (!choice || !choice.to) return;
+    
+    if (choice.setFacing) {
+      this.facing = choice.setFacing.toLowerCase();
+    }
+    
+    this.playAnimation(choice.to);
+    this.syncStateFromAnimation();
+    
+    // Prevent position offsets from lagging layout limits by forcing instant constraint mapping
+    if (this.currentAnimation) {
+      const limits = this.getCurrentLimits();
+      const type = this.currentAnimation.type;
+      if (type === 'WALL') {
+        const isLeftWall = this.currentAnimation.key.includes('left');
+        this.x = isLeftWall ? limits.left : limits.right;
+        this.container.style.left = `${this.x}px`;
+      } else if (type === 'CEILING') {
+        this.y = limits.top;
+        this.container.style.top = `${this.y}px`;
+      } else if (type === 'GROUND') {
+        if (this.state !== 'falling') {
+          this.y = limits.bottom;
+          this.container.style.top = `${this.y}px`;
+        }
+      }
+    }
+  }
+
+  // Map Shimeji Animation Type to JS States
+  syncStateFromAnimation() {
+    if (!this.currentAnimation) return;
+    
+    const type = this.currentAnimation.type;
+    const key = this.currentAnimation.key;
+    
+    if (type === 'WALL') {
+      this.state = 'climbing';
+    } else if (type === 'CEILING') {
+      this.state = 'ceiling';
+    } else if (type === 'AIR') {
+      this.state = 'falling';
+    } else { // GROUND
+      if (key.includes('walk') || this.currentAnimation.subtype === 'WALK') {
+        this.state = 'walking';
+      } else if (key.includes('sleep') || this.currentAnimation.subtype === 'SLEEP') {
+        this.state = 'sleeping';
+      } else if (key.includes('sit') || this.currentAnimation.subtype === 'SIT') {
+        this.state = 'sitting';
+      } else {
+        this.state = 'idle';
+      }
+    }
   }
 
   // Render current frame image and set mirror transforms
@@ -428,6 +654,25 @@ class DesktopPetManager {
     const frames = this.currentAnimation.frames;
     if (frames.length === 0) return;
     
+    // Increment total played ticks
+    this.animationTicks += dt;
+    
+    // 1. Process custom timer choices (for LOOP states like Luffy's custom AI)
+    if (this.state !== 'dragging' && this.state !== 'falling') {
+      for (const t of this.currentTimers) {
+        if (this.animationTicks >= t.triggerTicks && !t.triggered) {
+          t.triggered = true;
+          if (Math.random() < (t.rule.chance !== undefined ? t.rule.chance : 1.0)) {
+            const chosen = this.chooseTransition(t.rule.choices);
+            if (chosen) {
+              this.transitionTo(chosen);
+              return;
+            }
+          }
+        }
+      }
+    }
+    
     const frame = frames[this.currentFrameIndex];
     this.currentFrameTicks += dt;
     
@@ -442,46 +687,66 @@ class DesktopPetManager {
           // ONESHOT animation finishes playing
           this.currentFrameIndex = frames.length - 1;
           
-          if (this.state === 'landing') {
-            this.changeState('idle');
-          } else if (this.state === 'talking') {
-            this.changeState('idle');
+          if (this.state !== 'dragging' && this.state !== 'falling') {
+            const onFinishChoices = this.currentAnimation.auto && this.currentAnimation.auto.onFinish;
+            if (onFinishChoices && onFinishChoices.length > 0) {
+              const chosen = this.chooseTransition(onFinishChoices);
+              if (chosen) {
+                this.transitionTo(chosen);
+                return;
+              }
+            }
+            // Defaults to stand
+            this.playAnimation('stand');
+            this.syncStateFromAnimation();
+            return;
           }
         }
       }
       
       this.renderCurrentFrame();
     }
+    
+    // 2. Loop lifetime duration end transition
+    if (this.state !== 'dragging' && this.state !== 'falling' && this.currentAnimation.loop === 'LOOP') {
+      if (this.maxDuration !== null && this.animationTicks >= this.maxDuration) {
+        const onFinishChoices = this.currentAnimation.auto && this.currentAnimation.auto.onFinish;
+        if (onFinishChoices && onFinishChoices.length > 0) {
+          const chosen = this.chooseTransition(onFinishChoices);
+          if (chosen) {
+            this.transitionTo(chosen);
+            return;
+          }
+        }
+        // Defaults to stand
+        this.playAnimation('stand');
+        this.syncStateFromAnimation();
+      }
+    }
   }
 
-  // FSM State Transition Management
+  // FSM State Transition Management (interactive triggers & bubble state handlers)
   changeState(newState) {
-    if (this.state === newState && newState !== 'walking') return;
-    
     this.state = newState;
     
     switch (newState) {
       case 'idle':
         this.vx = 0;
         this.vy = 0;
-        this.facing = this.facing || 'left';
         this.playAnimation('stand');
-        this.nextActionTicks = 240 + Math.random() * 200; // Decision AI after 4-7s
         this.startIdleTalkLoop();
         break;
         
       case 'walking':
-        this.playAnimation(this.vx > 0 ? 'walk_right' : 'walk_left');
-        this.nextActionTicks = 180 + Math.random() * 200; // Walk for 3-6s
         this.stopIdleTalkLoop();
         this.hideSpeechBubble();
+        this.playAnimation('walk');
         break;
         
       case 'sitting':
         this.vx = 0;
         this.vy = 0;
         this.playAnimation('sit');
-        this.nextActionTicks = 300 + Math.random() * 200; // Sit for 5-8s
         this.startIdleTalkLoop();
         break;
         
@@ -489,8 +754,8 @@ class DesktopPetManager {
         this.vx = 0;
         this.vy = 0;
         this.playAnimation('sleep');
-        this.nextActionTicks = 450 + Math.random() * 300; // Sleep for 7-12s
         this.stopIdleTalkLoop();
+        this.hideSpeechBubble();
         break;
         
       case 'dragging':
@@ -511,7 +776,21 @@ class DesktopPetManager {
       case 'talking':
         this.vx = 0;
         this.vy = 0;
-        this.playAnimation('idle'); // standard breathing idle
+        this.playAnimation('idle');
+        break;
+        
+      case 'action':
+        this.vx = 0;
+        this.vy = 0;
+        this.stopIdleTalkLoop();
+        
+        const specialKeys = this.getSpecialActions();
+        if (specialKeys.length > 0) {
+          const chosenKey = specialKeys[Math.floor(Math.random() * specialKeys.length)];
+          this.playAnimation(chosenKey);
+        } else {
+          this.playAnimation('stand');
+        }
         break;
     }
   }
@@ -586,8 +865,15 @@ class DesktopPetManager {
       const dt = Math.min((now - lastTime) / 16.666, 3.0);
       lastTime = now;
       
-      this.updatePhysics(dt);
-      this.updateAnimation(dt);
+      if (this.state === 'falling') {
+        // Falling (gravity) physical updates run at full speed for snappy gravity response
+        this.updatePhysics(dt);
+        this.updateAnimation(dt * this.speedScale);
+      } else {
+        // Wander walk, wall climbing, ceiling hanging, and regular animations run with damper scale
+        this.updatePhysics(dt * this.speedScale);
+        this.updateAnimation(dt * this.speedScale);
+      }
       
       this.physicsFrameId = requestAnimationFrame(loop);
     };
@@ -602,17 +888,22 @@ class DesktopPetManager {
     }
   }
 
-  // Physics update (Falling gravity, wandering coordinates, boundary checking)
+  // Physics update (Shimeji engine driven dx/dy offsets, wall/ceiling clamping, and border transition rules)
   updatePhysics(dt) {
     const limits = this.getCurrentLimits();
     const bottomLimit = limits.bottom;
     const rightLimit = limits.right;
     const leftLimit = limits.left;
+    const topLimit = limits.top;
     
-    // 1. Falling/Dropping physics
+    // 1. Dragging state: completely driven by mouse drag coordinates
+    if (this.state === 'dragging') {
+      return;
+    }
+    
+    // 2. Falling state: standard gravity physics
     if (this.state === 'falling') {
       this.vy += this.gravity * dt;
-      
       this.x += this.vx * dt;
       this.y += this.vy * dt;
       
@@ -623,10 +914,24 @@ class DesktopPetManager {
         this.y = bottomLimit;
         
         if (Math.abs(this.vy) < 1.8) {
-          this.changeState('landing');
+          // Trigger BOTTOM border transition if available on fall
+          let handled = false;
+          if (this.currentAnimation && this.currentAnimation.borderTransitions) {
+            const bt = this.currentAnimation.borderTransitions.find(b => b.when === 'BOTTOM' && (b.facing === undefined || b.facing.toLowerCase() === this.facing));
+            if (bt && bt.choices) {
+              const chosen = this.chooseTransition(bt.choices);
+              if (chosen) {
+                this.transitionTo(chosen);
+                handled = true;
+              }
+            }
+          }
+          if (!handled) {
+            this.changeState('landing');
+          }
           this.savePosition();
         } else {
-          // Bounce
+          // Bounce physics
           this.vy = -this.vy * this.restitution;
           this.vx *= 0.8;
           this.playAnimation('bounce');
@@ -650,63 +955,174 @@ class DesktopPetManager {
       
       this.container.style.left = `${this.x}px`;
       this.container.style.top = `${this.y}px`;
+      return;
     }
     
-    // 2. Wandering AI movement
-    else if (this.state === 'walking') {
-      this.x += this.vx * dt;
+    // 3. Shimeji Config Driven Position Updates
+    if (!this.currentAnimation) return;
+    
+    const frames = this.currentAnimation.frames;
+    if (!frames || frames.length === 0) return;
+    
+    const frame = frames[this.currentFrameIndex] || frames[0];
+    const dx = frame.dx !== undefined ? frame.dx : 0;
+    const dy = frame.dy !== undefined ? frame.dy : 0;
+    
+    const type = this.currentAnimation.type;
+    
+    if (type === 'WALL') {
+      // Wall climbing state
+      const isLeftWall = this.currentAnimation.key.includes('left');
+      this.x = isLeftWall ? leftLimit : rightLimit;
       
-      // Edge detection during walk -> turn around
-      if (this.x <= leftLimit) {
-        this.x = leftLimit;
-        this.vx = 1.2;
-        this.facing = 'right';
-        this.playAnimation('walk_right');
-      } else if (this.x >= rightLimit) {
-        this.x = rightLimit;
-        this.vx = -1.2;
-        this.facing = 'left';
-        this.playAnimation('walk_left');
+      this.y += dy * dt;
+      
+      // Top wall limit collision
+      if (this.y <= topLimit) {
+        this.y = topLimit;
+        
+        let transitioned = false;
+        if (this.currentAnimation.borderTransitions) {
+          const bt = this.currentAnimation.borderTransitions.find(b => b.when === 'TOP');
+          if (bt && bt.choices) {
+            const chosen = this.chooseTransition(bt.choices, 'CEILING');
+            if (chosen) {
+              this.transitionTo(chosen);
+              transitioned = true;
+            }
+          }
+        }
+        if (!transitioned) {
+          this.changeState('falling');
+        }
+      }
+      
+      // Bottom wall limit collision (climbing down to floor)
+      else if (this.y >= bottomLimit) {
+        this.y = bottomLimit;
+        
+        let transitioned = false;
+        if (this.currentAnimation.borderTransitions) {
+          const bt = this.currentAnimation.borderTransitions.find(b => b.when === 'BOTTOM');
+          if (bt && bt.choices) {
+            const chosen = this.chooseTransition(bt.choices);
+            if (chosen) {
+              this.transitionTo(chosen);
+              transitioned = true;
+            }
+          }
+        }
+        if (!transitioned) {
+          this.playAnimation('stand');
+          this.syncStateFromAnimation();
+        }
+        this.savePosition();
       }
       
       this.container.style.left = `${this.x}px`;
-      
-      // Countdown walk duration
-      this.nextActionTicks -= dt;
-      if (this.nextActionTicks <= 0) {
-        this.changeState('idle');
-        this.savePosition();
-      }
+      this.container.style.top = `${this.y}px`;
     }
     
-    // 3. Idle countdown Decision AI
-    else if (this.state === 'idle' || this.state === 'sitting' || this.state === 'sleeping') {
-      this.nextActionTicks -= dt;
-      if (this.nextActionTicks <= 0) {
-        if (this.state === 'idle') {
-          const rand = Math.random();
-          if (rand < 0.35) {
-            // Walk Left
-            this.vx = -1.2;
-            this.facing = 'left';
-            this.changeState('walking');
-          } else if (rand < 0.70) {
-            // Walk Right
-            this.vx = 1.2;
-            this.facing = 'right';
-            this.changeState('walking');
-          } else if (rand < 0.85) {
-            // Sit
-            this.changeState('sitting');
-          } else {
-            // Sleep
-            this.changeState('sleeping');
+    else if (type === 'CEILING') {
+      // Ceiling hanging state
+      this.y = topLimit;
+      this.x += dx * dt;
+      
+      // Left ceiling limit collision
+      if (this.x <= leftLimit) {
+        this.x = leftLimit;
+        
+        let transitioned = false;
+        if (this.currentAnimation.borderTransitions) {
+          const bt = this.currentAnimation.borderTransitions.find(b => b.when === 'LEFT');
+          if (bt && bt.choices) {
+            const chosen = this.chooseTransition(bt.choices);
+            if (chosen) {
+              this.transitionTo(chosen);
+              transitioned = true;
+            }
           }
-        } else {
-          // Wake up / Stand up
-          this.changeState('idle');
+        }
+        if (!transitioned) {
+          this.changeState('falling');
         }
       }
+      
+      // Right ceiling limit collision
+      else if (this.x >= rightLimit) {
+        this.x = rightLimit;
+        
+        let transitioned = false;
+        if (this.currentAnimation.borderTransitions) {
+          const bt = this.currentAnimation.borderTransitions.find(b => b.when === 'RIGHT');
+          if (bt && bt.choices) {
+            const chosen = this.chooseTransition(bt.choices);
+            if (chosen) {
+              this.transitionTo(chosen);
+              transitioned = true;
+            }
+          }
+        }
+        if (!transitioned) {
+          this.changeState('falling');
+        }
+      }
+      
+      this.container.style.left = `${this.x}px`;
+      this.container.style.top = `${this.y}px`;
+    }
+    
+    else {
+      // Ground state
+      this.y = bottomLimit;
+      this.x += dx * dt;
+      
+      // Left ground limit collision
+      if (this.x <= leftLimit) {
+        this.x = leftLimit;
+        
+        let transitioned = false;
+        if (this.currentAnimation.borderTransitions) {
+          const bt = this.currentAnimation.borderTransitions.find(b => b.when === 'LEFT');
+          if (bt && bt.choices) {
+            const chosen = this.chooseTransition(bt.choices, 'WALL');
+            if (chosen) {
+              this.transitionTo(chosen);
+              transitioned = true;
+            }
+          }
+        }
+        if (!transitioned) {
+          this.facing = 'right';
+          this.playAnimation('walk_right');
+          this.syncStateFromAnimation();
+        }
+      }
+      
+      // Right ground limit collision
+      else if (this.x >= rightLimit) {
+        this.x = rightLimit;
+        
+        let transitioned = false;
+        if (this.currentAnimation.borderTransitions) {
+          const bt = this.currentAnimation.borderTransitions.find(b => b.when === 'RIGHT');
+          if (bt && bt.choices) {
+            const chosen = this.chooseTransition(bt.choices, 'WALL');
+            if (chosen) {
+              this.transitionTo(chosen);
+              transitioned = true;
+            }
+          }
+        }
+        if (!transitioned) {
+          this.facing = 'left';
+          this.playAnimation('walk_left');
+          this.syncStateFromAnimation();
+        }
+      }
+      
+      this.container.style.left = `${this.x}px`;
+      this.container.style.top = `${this.y}px`;
     }
   }
 
@@ -725,6 +1141,7 @@ class DesktopPetManager {
   updateRenderState() {
     const isDesktopMode = document.body.classList.contains('desktop-mode');
     if (isDesktopMode && this.visible) {
+      this.container.className = `pet-theme-${this.currentPetKey}`;
       this.container.style.display = 'block';
       setTimeout(() => {
         if (this.visible && document.body.classList.contains('desktop-mode')) {
@@ -761,6 +1178,8 @@ class DesktopPetManager {
 
     this.currentPetKey = petKey;
     this.basePath = `assets/${PET_TEMPLATES[petKey].dir}/`;
+    this.container.className = `pet-theme-${petKey}`;
+    if (this.visible) this.container.classList.add('visible');
     this.hasLoadedConfig = false;
     this.animations = [];
     this.currentAnimation = null;
@@ -794,7 +1213,7 @@ class DesktopPetManager {
     this.updateRenderState();
     
     if (document.body.classList.contains('desktop-mode')) {
-      this.triggerDialogue("你终于来啦！今天也要写有趣的便签哦~");
+      this.triggerDialogue("你终于来啦！");
     }
   }
 

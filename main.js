@@ -65,6 +65,19 @@ function createMainWindow() {
 
 
 
+  mainWindow.on('blur', () => {
+    if (isDesktopMode) {
+      mainWindow.setAlwaysOnTop(false);
+      mainWindow.setIgnoreMouseEvents(true, { forward: true });
+    }
+  });
+
+  mainWindow.on('focus', () => {
+    if (isDesktopMode) {
+      mainWindow.setAlwaysOnTop(true, 'screen-saver');
+    }
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
@@ -194,6 +207,34 @@ function createTray() {
               petWindow.webContents.send('change-pet', 'monkey-d-luffy');
             }
           }
+        },
+        {
+          label: '小光 (Hikari)',
+          type: 'radio',
+          id: 'pet-hikari-item',
+          checked: petVisibleSetting && activePet === 'hikari',
+          click: () => {
+            dbHelper.saveSetting('pet_visible', 'true');
+            dbHelper.saveSetting('active_pet', 'hikari');
+            if (petWindow) {
+              petWindow.webContents.send('tray-toggle-pet-visibility', true);
+              petWindow.webContents.send('change-pet', 'hikari');
+            }
+          }
+        },
+        {
+          label: '龙卷 (Tatsumaki)',
+          type: 'radio',
+          id: 'pet-tatsumaki-item',
+          checked: petVisibleSetting && activePet === 'd9qt2pik',
+          click: () => {
+            dbHelper.saveSetting('pet_visible', 'true');
+            dbHelper.saveSetting('active_pet', 'd9qt2pik');
+            if (petWindow) {
+              petWindow.webContents.send('tray-toggle-pet-visibility', true);
+              petWindow.webContents.send('change-pet', 'd9qt2pik');
+            }
+          }
         }
       ]
     },
@@ -291,6 +332,12 @@ function registerIpcHandlers() {
         } else if (activePet === 'monkey-d-luffy') {
           const item = trayContextMenu.getMenuItemById('pet-luffy-item');
           if (item) item.checked = true;
+        } else if (activePet === 'hikari') {
+          const item = trayContextMenu.getMenuItemById('pet-hikari-item');
+          if (item) item.checked = true;
+        } else if (activePet === 'd9qt2pik') {
+          const item = trayContextMenu.getMenuItemById('pet-tatsumaki-item');
+          if (item) item.checked = true;
         }
       }
     }
@@ -327,6 +374,7 @@ function registerIpcHandlers() {
           mainWindow.setWindowLevel('desktop');
         } else {
           mainWindow.setAlwaysOnTop(false);
+          mainWindow.setIgnoreMouseEvents(true, { forward: true });
         }
 
         // Create independent always-on-top pet window
