@@ -154,7 +154,7 @@ function createTray() {
       }
     },
     {
-      label: '桌面壁纸模式',
+      label: '桌面模式',
       type: 'checkbox',
       id: 'desktop-mode-item',
       checked: isDesktop,

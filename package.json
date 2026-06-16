@@ -1,5 +1,5 @@
 {
-  "name": "note-sprite",
+  "name": "Elf-Notes",
   "version": "1.0.0",
   "description": "A sleek, modern desktop sticky note application built with Electron and SQLite",
   "main": "main.js",
