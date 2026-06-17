@@ -736,11 +736,6 @@
           {
             "choices": [
               {
-                "to": "fall",
-                "weight": 1,
-                "setFacing": "LEFT"
-              },
-              {
                 "to": "climb_ceiling_left",
                 "weight": 3
               },
@@ -844,11 +839,6 @@
         "onTimer": [
           {
             "choices": [
-              {
-                "to": "fall",
-                "weight": 1,
-                "setFacing": "RIGHT"
-              },
               {
                 "to": "climb_ceiling_left",
                 "weight": 2
