@@ -688,7 +688,7 @@
       "frames": [
         {
           "sprite": 24,
-          "dx": 0,
+          "dx": -1,
           "dy": 0,
           "durationTicks": 16
         },
@@ -712,7 +712,7 @@
         },
         {
           "sprite": 61,
-          "dx": 0,
+          "dx": -1,
           "dy": 0,
           "durationTicks": 16
         },
@@ -741,16 +741,20 @@
             "choices": [
               {
                 "to": "fall",
-                "weight": 0.34,
+                "weight": 1,
                 "setFacing": "LEFT"
               },
               {
+                "to": "climb_ceiling_left",
+                "weight": 3
+              },
+              {
                 "to": "climb_ceiling_right",
-                "weight": 0.33
+                "weight": 2
               },
               {
                 "to": "jump_down_left",
-                "weight": 0.33
+                "weight": 1
               }
             ],
             "minTicks": 1000,
@@ -789,7 +793,7 @@
       "frames": [
         {
           "sprite": 24,
-          "dx": 0,
+          "dx": 1,
           "dy": 0,
           "durationTicks": 16
         },
@@ -813,7 +817,7 @@
         },
         {
           "sprite": 61,
-          "dx": 0,
+          "dx": 1,
           "dy": 0,
           "durationTicks": 16
         },
@@ -842,16 +846,21 @@
             "choices": [
               {
                 "to": "fall",
-                "weight": 0.34,
+                "weight": 1,
                 "setFacing": "RIGHT"
               },
               {
                 "to": "climb_ceiling_left",
-                "weight": 0.33
+                "weight": 2
+              },
+              {
+                "to": "climb_ceiling_right",
+                "weight": 3,
+                "setFacing": "RIGHT"
               },
               {
                 "to": "jump_down_right",
-                "weight": 0.33
+                "weight": 1
               }
             ],
             "minTicks": 1000,

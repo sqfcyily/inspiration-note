@@ -226,13 +226,27 @@ function createTray() {
           label: '龙卷 (Tatsumaki)',
           type: 'radio',
           id: 'pet-tatsumaki-item',
-          checked: petVisibleSetting && activePet === 'd9qt2pik',
+          checked: petVisibleSetting && activePet === 'tatsumaki',
           click: () => {
             dbHelper.saveSetting('pet_visible', 'true');
-            dbHelper.saveSetting('active_pet', 'd9qt2pik');
+            dbHelper.saveSetting('active_pet', 'tatsumaki');
             if (petWindow) {
               petWindow.webContents.send('tray-toggle-pet-visibility', true);
-              petWindow.webContents.send('change-pet', 'd9qt2pik');
+              petWindow.webContents.send('change-pet', 'tatsumaki');
+            }
+          }
+        },
+        {
+          label: '熊猫',
+          type: 'radio',
+          id: 'pet-koro-item',
+          checked: petVisibleSetting && activePet === 'kоро',
+          click: () => {
+            dbHelper.saveSetting('pet_visible', 'true');
+            dbHelper.saveSetting('active_pet', 'kоро');
+            if (petWindow) {
+              petWindow.webContents.send('tray-toggle-pet-visibility', true);
+              petWindow.webContents.send('change-pet', 'kоро');
             }
           }
         }
@@ -335,8 +349,11 @@ function registerIpcHandlers() {
         } else if (activePet === 'hikari') {
           const item = trayContextMenu.getMenuItemById('pet-hikari-item');
           if (item) item.checked = true;
-        } else if (activePet === 'd9qt2pik') {
+        } else if (activePet === 'tatsumaki' || activePet === 'd9qt2pik') {
           const item = trayContextMenu.getMenuItemById('pet-tatsumaki-item');
+          if (item) item.checked = true;
+        } else if (activePet === 'kоро') {
+          const item = trayContextMenu.getMenuItemById('pet-koro-item');
           if (item) item.checked = true;
         }
       }

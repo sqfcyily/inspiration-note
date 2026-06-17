@@ -564,19 +564,14 @@
       "auto": {
         "onFinish": [
           {
-            "to": "descend_left",
-            "weight": 1,
-            "setFacing": "LEFT"
-          },
-          {
             "to": "climb_left",
             "weight": 1,
             "setFacing": "LEFT"
           }
         ],
         "maxDurationTicks": {
-          "minTicks": 2000,
-          "maxTicks": 3000
+          "minTicks": 240,
+          "maxTicks": 480
         }
       },
       "borderTransitions": [
@@ -585,7 +580,8 @@
           "choices": [
             {
               "to": "climb_ceiling_right",
-              "weight": 1
+              "weight": 1,
+              "setFacing": "RIGHT"
             }
           ]
         }
@@ -651,19 +647,14 @@
       "auto": {
         "onFinish": [
           {
-            "to": "descend_right",
-            "weight": 1,
-            "setFacing": "RIGHT"
-          },
-          {
             "to": "climb_right",
             "weight": 1,
             "setFacing": "RIGHT"
           }
         ],
         "maxDurationTicks": {
-          "minTicks": 2000,
-          "maxTicks": 3000
+          "minTicks": 240,
+          "maxTicks": 480
         }
       },
       "borderTransitions": [
@@ -671,8 +662,13 @@
           "when": "TOP",
           "choices": [
             {
-              "to": "climb_ceiling_left",
+              "to": "descend_right",
               "weight": 1
+            },
+            {
+              "to": "climb_ceiling_left",
+              "weight": 1,
+              "setFacing": "LEFT"
             }
           ]
         }
@@ -688,7 +684,7 @@
       "frames": [
         {
           "sprite": 24,
-          "dx": 0,
+          "dx": -1,
           "dy": 0,
           "durationTicks": 16
         },
@@ -712,7 +708,7 @@
         },
         {
           "sprite": 61,
-          "dx": 0,
+          "dx": -1,
           "dy": 0,
           "durationTicks": 16
         },
@@ -741,16 +737,20 @@
             "choices": [
               {
                 "to": "fall",
-                "weight": 0.34,
+                "weight": 1,
                 "setFacing": "LEFT"
               },
               {
+                "to": "climb_ceiling_left",
+                "weight": 3
+              },
+              {
                 "to": "climb_ceiling_right",
-                "weight": 0.33
+                "weight": 2
               },
               {
                 "to": "jump_down_left",
-                "weight": 0.33
+                "weight": 1
               }
             ],
             "minTicks": 1000,
@@ -774,6 +774,10 @@
             {
               "to": "climb_ceiling_right",
               "weight": 1
+            },
+            {
+              "to": "fall",
+              "weight": 1
             }
           ]
         }
@@ -789,7 +793,7 @@
       "frames": [
         {
           "sprite": 24,
-          "dx": 0,
+          "dx": 1,
           "dy": 0,
           "durationTicks": 16
         },
@@ -813,7 +817,7 @@
         },
         {
           "sprite": 61,
-          "dx": 0,
+          "dx": 1,
           "dy": 0,
           "durationTicks": 16
         },
@@ -842,16 +846,21 @@
             "choices": [
               {
                 "to": "fall",
-                "weight": 0.34,
+                "weight": 1,
                 "setFacing": "RIGHT"
               },
               {
                 "to": "climb_ceiling_left",
-                "weight": 0.33
+                "weight": 2
+              },
+              {
+                "to": "climb_ceiling_right",
+                "weight": 3,
+                "setFacing": "RIGHT"
               },
               {
                 "to": "jump_down_right",
-                "weight": 0.33
+                "weight": 1
               }
             ],
             "minTicks": 1000,
@@ -874,6 +883,10 @@
             },
             {
               "to": "climb_ceiling_left",
+              "weight": 1
+            },
+            {
+              "to": "fall",
               "weight": 1
             }
           ]
@@ -943,15 +956,15 @@
             "choices": [
               {
                 "to": "climb_left",
-                "weight": 0.7
+                "weight": 1
               },
               {
                 "to": "jump_right",
-                "weight": 0.2
+                "weight": 1
               },
               {
                 "to": "fall",
-                "weight": 0.1,
+                "weight": 1,
                 "setFacing": "LEFT"
               }
             ],
